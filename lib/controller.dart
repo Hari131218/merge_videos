@@ -112,8 +112,22 @@ class VideoRecorderController extends ChangeNotifier {
         return;
       }
 
+      final tempvideolist = videoPaths.sublist(1, videoPaths.length);
+
+      //  A SAMPLE MERGE COMMAND
+      //     '-y -i ${videoPaths[1]} -i ${videoPaths[2]} -filter_complex [0:v][1:v]concat=n=2:v=1[outv] -map [outv] -c:v mpeg4 -r 30 ${videoPaths[0]}';
+
+      final paths = List.generate(tempvideolist.length,
+              (i) => i == 0 ? " -i ${tempvideolist[i]}" : tempvideolist[i])
+          .join(" -i ");
+
+      final mergeVersions =
+          List.generate(tempvideolist.length, (i) => "[$i:v]").join("");
+
       final command =
-          '-y -i ${videoPaths[1]} -i ${videoPaths[2]} -filter_complex [0:v][1:v]concat=n=2:v=1[outv] -map [outv] -c:v mpeg4 -r 30 ${videoPaths[0]}';
+          '-y $paths -filter_complex ${mergeVersions}concat=n=${tempvideolist.length}:v=1[outv] -map [outv] -c:v mpeg4 -r 30 ${videoPaths[0]}';
+
+      log("command: $command");
       await FFmpegKit.execute(command).then(
         (Session session) async {
           // final arguments = session.getArguments();
