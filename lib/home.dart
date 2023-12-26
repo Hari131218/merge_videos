@@ -33,11 +33,26 @@ class CameraScreen extends StatelessWidget {
         ],
       ),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          SizedBox(
-            height: 300,
-            child: CameraPreview(videoController.controller),
-          ),
+          if (videoController.controller != null)
+            Expanded(
+              child: AspectRatio(
+                aspectRatio:
+                    videoController.controller?.value.aspectRatio ?? 16 / 9,
+                child: CameraPreview(videoController.controller ??
+                    CameraController(
+                        const CameraDescription(
+                            name: "nnn",
+                            lensDirection: CameraLensDirection.front,
+                            sensorOrientation: 0),
+                        ResolutionPreset.high)),
+              ),
+            )
+          else
+            const Center(
+              child: CircularProgressIndicator(),
+            ),
           const SizedBox(height: 20),
           ElevatedButton(
             onPressed: () {
@@ -63,26 +78,32 @@ class CameraScreen extends StatelessWidget {
                 : const Text("Merge Videos"),
           ),
           const SizedBox(height: 20),
-          Expanded(
-            child: ListView.builder(
-              itemCount: videoController.videoPaths.length,
-              itemBuilder: (context, index) {
-                return GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onTap: () {
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => VideoPlayerScreen(
-                          videoPath: videoController.videoPaths[index]),
-                    ));
-                  },
-                  child: ListTile(
-                    title: Text("Video ${index + 1}"),
-                    subtitle: Text(videoController.videoPaths[index]),
-                  ),
-                );
-              },
-            ),
-          ),
+          if (videoController.videoPaths.length > 1)
+            SizedBox(
+              height: 400,
+              child: ListView.builder(
+                itemCount: videoController.videoPaths.length - 1,
+                itemBuilder: (context, index) {
+                  return GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTap: () {
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => VideoPlayerScreen(
+                            videoPath: videoController.videoPaths[index]),
+                      ));
+                    },
+                    child: ListTile(
+                      title: Text("Video ${index + 1}"),
+                      subtitle: Text(videoController.videoPaths[index]),
+                    ),
+                  );
+                },
+              ),
+            )
+          else
+            const Text("no videos"),
+          if (videoController.videoPaths.isNotEmpty)
+            Text("Merge videos @ ${videoController.videoPaths[0]}")
         ],
       ),
     );

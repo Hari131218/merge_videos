@@ -15,7 +15,7 @@ import 'package:ffmpeg_kit_flutter/ffmpeg_kit.dart';
 
 class VideoRecorderController extends ChangeNotifier {
   final CameraDescription camera;
-  late CameraController controller;
+  CameraController? controller;
   List<String> videoPaths = [];
   bool isRecording = false;
 
@@ -28,7 +28,7 @@ class VideoRecorderController extends ChangeNotifier {
   Future<void> initializeCamera() async {
     try {
       controller = CameraController(camera, ResolutionPreset.veryHigh);
-      await controller.initialize();
+      await controller?.initialize();
       await startRecording();
       await Future.delayed(const Duration(milliseconds: 200));
       await stopRecording();
@@ -40,9 +40,9 @@ class VideoRecorderController extends ChangeNotifier {
   }
 
   Future<void> startRecording() async {
-    if (!controller.value.isRecordingVideo) {
+    if (!controller!.value.isRecordingVideo) {
       try {
-        await controller.startVideoRecording();
+        await controller?.startVideoRecording();
         isRecording = true;
         log("Video Recording started");
         notifyListeners();
@@ -53,11 +53,11 @@ class VideoRecorderController extends ChangeNotifier {
   }
 
   Future<void> stopRecording() async {
-    if (controller.value.isRecordingVideo) {
+    if (controller!.value.isRecordingVideo) {
       try {
         log("Video Recording stopped");
         // Stop video recording
-        XFile videoFile = await controller.stopVideoRecording();
+        XFile videoFile = await controller!.stopVideoRecording();
 
         // Generate a random number to use in the new file name
         int randomSuffix = math.Random().nextInt(999999); // Adjust as needed
@@ -81,6 +81,7 @@ class VideoRecorderController extends ChangeNotifier {
         await originalFile.copy(newPath);
 
         videoPaths.add(newFile.path);
+        notifyListeners();
 
         // Optionally, you can save the renamed file to the gallery
         // await GallerySaver.saveVideo(newFile.path);
@@ -96,9 +97,6 @@ class VideoRecorderController extends ChangeNotifier {
   }
 
   void deleteIndividualVideos() {
-    for (String path in videoPaths) {
-      File(path).deleteSync();
-    }
     videoPaths.clear();
     notifyListeners();
   }
@@ -107,9 +105,15 @@ class VideoRecorderController extends ChangeNotifier {
     try {
       mergeLoading = false;
       notifyListeners();
+      if (videoPaths.length <= 2) {
+        log("empty videos list");
+        mergeLoading = true;
+        notifyListeners();
+        return;
+      }
 
       final command =
-          '-y -i ${videoPaths[0]} -i ${videoPaths[1]} -filter_complex [0:v][1:v]concat=n=2:v=1[outv] -map [outv] -c:v mpeg4 -r 30 ${videoPaths[2]}';
+          '-y -i ${videoPaths[1]} -i ${videoPaths[2]} -filter_complex [0:v][1:v]concat=n=2:v=1[outv] -map [outv] -c:v mpeg4 -r 30 ${videoPaths[0]}';
       await FFmpegKit.execute(command).then(
         (Session session) async {
           // final arguments = session.getArguments();
@@ -127,12 +131,19 @@ class VideoRecorderController extends ChangeNotifier {
 
             // Save the merged video to the gallery
             final save =
-                await GallerySaver.saveVideo(videoPaths[2], toDcim: true);
+                await GallerySaver.saveVideo(videoPaths[0], toDcim: true);
 
             if (save!) {
               log("video saved to gallery");
               var appDir = (await getTemporaryDirectory()).path;
               Directory(appDir).delete(recursive: true);
+              videoPaths.clear();
+
+              await controller?.startVideoRecording();
+              isRecording = true;
+              await Future.delayed(const Duration(milliseconds: 200));
+              await stopRecording();
+              notifyListeners();
             } else {
               log("video not saved to");
             }
@@ -163,24 +174,9 @@ class VideoRecorderController extends ChangeNotifier {
     }
   }
 
-  String? extractMergedVideoPath(String logMessages) {
-    final lines = LineSplitter.split(logMessages);
-
-    for (var line in lines) {
-      log("----| $line");
-      if (line.startsWith("Merged video saved at:")) {
-        // Extract the path from the line (assuming the path is everything after the colon)
-        final path = line.substring("Merged video saved at:".length).trim();
-        return path;
-      }
-    }
-    // Return null if the path is not found
-    return null;
-  }
-
   @override
   void dispose() {
-    controller.dispose();
+    controller?.dispose();
     super.dispose();
   }
 }
