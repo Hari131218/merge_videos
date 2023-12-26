@@ -141,7 +141,7 @@ class VideoRecorderController extends ChangeNotifier {
 
               await controller?.startVideoRecording();
               isRecording = true;
-              await Future.delayed(const Duration(milliseconds: 200));
+              await Future.delayed(const Duration(seconds: 2));
               await stopRecording();
               notifyListeners();
             } else {
