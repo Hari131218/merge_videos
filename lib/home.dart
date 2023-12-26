@@ -77,7 +77,7 @@ class CameraScreen extends StatelessWidget {
                   },
                   child: ListTile(
                     title: Text("Video ${index + 1}"),
-                    subtitle: Text(videoController.videoPaths[index - 1]),
+                    subtitle: Text(videoController.videoPaths[index]),
                   ),
                 );
               },

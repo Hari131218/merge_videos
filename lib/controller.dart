@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
 import 'package:ffmpeg_kit_flutter/log.dart';
@@ -29,6 +30,7 @@ class VideoRecorderController extends ChangeNotifier {
       controller = CameraController(camera, ResolutionPreset.veryHigh);
       await controller.initialize();
       await startRecording();
+      await Future.delayed(const Duration(milliseconds: 200));
       await stopRecording();
 
       notifyListeners();
@@ -54,61 +56,42 @@ class VideoRecorderController extends ChangeNotifier {
     if (controller.value.isRecordingVideo) {
       try {
         log("Video Recording stopped");
+        // Stop video recording
         XFile videoFile = await controller.stopVideoRecording();
 
-        videoPaths.add(videoFile.path);
-        log("Video saved at: $videoFile.path");
+        // Generate a random number to use in the new file name
+        int randomSuffix = math.Random().nextInt(999999); // Adjust as needed
+
+        // Construct the new file name with the random number
+        String newFileName = 'REC$randomSuffix.mp4';
+
+        // Get the app's temporary directory
+        Directory tempDir = await getTemporaryDirectory();
+
+        // Specify the path for storing the renamed video in the temporary directory
+        String newPath = '${tempDir.path}/$newFileName';
+
+        // Create a File object for the original video file
+        File originalFile = File(videoFile.path);
+
+        // Create a File object for the new path
+        File newFile = File(newPath);
+
+        // Rename the file by copying it to the new path
+        await originalFile.copy(newPath);
+
+        videoPaths.add(newFile.path);
+
+        // Optionally, you can save the renamed file to the gallery
+        // await GallerySaver.saveVideo(newFile.path);
+
+        log('Video saved to: ${newFile.path}');
+
         isRecording = false;
         notifyListeners();
       } catch (e) {
         log(e.toString());
       }
-    }
-  }
-
-  Future<void> mergeVideos() async {
-    Directory? appDocDir = await getDownloadsDirectory();
-    Directory(appDocDir?.path ?? "XXX");
-    String outputVideoPath = '${appDocDir?.path ?? "XXX"}/merged_video.mp4';
-
-    String merger =
-        '-i ${videoPaths[0]} -i ${videoPaths[1]} -filter_complex \'[0:v]scale=480:640[v0];[1:v]scale=480:640[v1];[v0][0:a][v1][1:a]concat=n=2:v=1:a=1[outv][outa]' +
-            '-map \'[outv][outa]' +
-            outputVideoPath;
-
-    log("merger $merger");
-
-    final result = await GallerySaver.saveVideo(merger);
-
-    log(result.toString());
-
-    // File(merger).deleteSync();
-
-    if (result!) {
-      log('Videos merged successfully!');
-
-      // deleteIndividualVideos();
-
-      // Use gal package instead of GallerySaver
-      GallerySaver.saveVideo(outputVideoPath);
-
-      // Use File class instead of Directory class
-      File(merger).deleteSync();
-
-      // Use correct syntax for concatenating videos with ffmpeg
-      merger = '-c copy$merger';
-
-      merger =
-          '[0:v]scale=480:640[v0];[1:v]scale=480:640[v1];[v0][0:a][v1][1:a]concat=n=2:v=1:a=1[outv][outa]$merger';
-
-      log("merger $merger");
-
-      final result = await GallerySaver.saveVideo(merger);
-
-      log(result.toString());
-      notifyListeners();
-    } else {
-      log('Error merging videos.!');
     }
   }
 
@@ -120,14 +103,14 @@ class VideoRecorderController extends ChangeNotifier {
     notifyListeners();
   }
 
-  fFmpegKitFuntion() {
+  fFmpegKitFuntion() async {
     try {
       mergeLoading = false;
       notifyListeners();
 
       final command =
-          '-i ${videoPaths[0]} -i ${videoPaths[1]} -filter_complex [0:v][1:v]concat=n=2:v=1[outv] -map [outv] -c:v mpeg4 -r 30 ${videoPaths[2]}';
-      FFmpegKit.execute(command).then(
+          '-y -i ${videoPaths[0]} -i ${videoPaths[1]} -filter_complex [0:v][1:v]concat=n=2:v=1[outv] -map [outv] -c:v mpeg4 -r 30 ${videoPaths[2]}';
+      await FFmpegKit.execute(command).then(
         (Session session) async {
           // final arguments = session.getArguments();
 
@@ -142,14 +125,14 @@ class VideoRecorderController extends ChangeNotifier {
 
             log("Messs $message");
 
-            // Extract the merged video file path from the log messages or output
-            final mergedVideoPath = extractMergedVideoPath(message!);
-            log("Merged Video Path: $mergedVideoPath");
-            log("++--| $output");
-            final save = await GallerySaver.saveVideo(videoPaths[2]);
+            // Save the merged video to the gallery
+            final save =
+                await GallerySaver.saveVideo(videoPaths[2], toDcim: true);
 
             if (save!) {
               log("video saved to gallery");
+              var appDir = (await getTemporaryDirectory()).path;
+              Directory(appDir).delete(recursive: true);
             } else {
               log("video not saved to");
             }
